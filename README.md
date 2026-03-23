@@ -124,3 +124,7 @@ while (1)
 - `Serial_UART1_Process()` 内部示例将解析值写入静态数组 `parsed_data[256]`，如需业务层使用，建议增加拷贝接口或回调。
 - UART1 校验策略是“逐字节累加低 8 位”，上位机发包应保持一致。
 - UART2 当前仅完成接收标志置位，业务解析可在主循环中补充。
+
+## Serial_ROS2
+
+参考cgc的[serial_driver_ros](https://github.com/BoomBoomFly/serial_driver_ros)
