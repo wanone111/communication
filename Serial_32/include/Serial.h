@@ -15,6 +15,10 @@
 #define UART2_FRAME_TAIL     0xFE
 
 #define MAX_FRAME_LEN        255
+#define UART1_FRAME_QUEUE_DEPTH 8
+#define UART1_PARSED_MAX_COUNT  128
+#define SERIAL_UART1_ID       1U
+#define SERIAL_UART2_ID       2U
 
 // --- 数据结构封装 ---
 typedef struct {
@@ -28,6 +32,18 @@ typedef struct {
     volatile uint8_t  checksum_calc;             // 校验和计算过程变量
 } Serial_Context_t;
 
+typedef struct {
+    uint32_t uart1_rx_ok;
+    uint32_t uart1_rx_drop;
+    uint32_t uart1_checksum_err;
+    uint32_t uart1_len_err;
+    uint32_t uart2_rx_ok;
+    uint32_t uart2_rx_drop;
+    uint32_t uart2_format_err;
+    uint32_t uart_error_recover;
+    uint8_t  uart1_queue_peak;
+} Serial_Stats_t;
+
 // #define SERIAL_DEBUG // 取消注释以开启调试打印
 
 // --- 外部变量声明 ---
@@ -39,5 +55,9 @@ void Serial_Init(void);                 // 初始化
 void Serial_UART1_Process(void);        // 数据处理
 uint8_t Serial_GetRxFlag1(void);
 uint8_t Serial_GetRxFlag2(void);
+uint8_t Serial_UART1_PopFrame(uint8_t *out_frame, uint8_t *out_len);
+uint8_t Serial_UART1_GetParsedMilli(int16_t *out_data, uint8_t max_count, uint8_t *out_count);
+void Serial_GetStats(Serial_Stats_t *out_stats);
+void Serial_TestFeedByte(uint8_t uart_id, uint8_t byte);
 
 #endif /* SERIAL_H */
