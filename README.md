@@ -17,8 +17,15 @@
 
 ### UART 用途
 
-- `USART1`：`RX B15`、`TX B14`，用于无人机与地面端通信。
-- `USART2`：`RX A3`、`TX A2`，用于 STM32 与串口屏通信，同时作为 `printf` 输出串口。
+- `USART1`：用于无人机与地面端通信。
+- `USART2`：用于 STM32 与串口屏通信，同时作为 `printf` 输出串口。
+
+STM32F103C8T6 常见引脚映射：
+
+- `USART1`：默认 `TX PA9`、`RX PA10`；重映射后 `TX PB6`、`RX PB7`。
+- `USART2`：`TX PA2`、`RX PA3`。
+
+`Serial.c` 原始注释中写有 `USART1 RX B15 / TX B14`，该引脚组合未在当前工程中验证；集成时以 STM32CubeMX 配置和实际原理图为准。
 
 ### 帧格式
 

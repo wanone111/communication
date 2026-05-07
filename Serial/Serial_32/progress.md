@@ -25,6 +25,7 @@
     - `rg -n "^serial\\.c$|RxData1<=255|\\\\xff|uint8_t pRxPacket1|uint8_t pRxPacket2" package/communication/Serial/Serial_32 -S`
 - README 更新已完成：
   - 用户补充目标芯片为 STM32F103C8T6。
+  - 参考本地 `PX4-Autopilot/platforms/nuttx/NuttX/nuttx/arch/arm/src/stm32/hardware/stm32f103c_pinmap.h` 核对 USART1/USART2 常见引脚映射。
   - `package/communication/README.md` 原本为空文件，本次补充了通信目录结构、`Serial_32` 文件说明、UART 用途、帧格式、已优化内容、已验证内容和未验证内容。
 - 验证结果：
   - 两组 `gcc -fsyntax-only` 均返回 0，未输出警告或错误。

@@ -10,6 +10,7 @@
   - `agent.md` 要求中文沟通、先读再改、最小改动、真实验证、完成后汇总。
   - 当前工作目录不是 Git 仓库，无法使用 `git status` 获取变更状态。
   - 用户补充目标芯片为 STM32F103C8T6。
+  - 本地 `stm32f103c_pinmap.h` 显示 USART1 默认 PA9/PA10、重映射 PB6/PB7；USART2 为 PA2/PA3。
   - `Serial_32/src/Serial.c` 原始文件包含裸文本 `serial.c`，会导致 C 编译错误。
   - `Serial_32/src/Serial.c` 引用了 `serial.h`，但目标目录内原本没有该头文件；本次已新增。
   - `Serial_ROS2` 下相邻文件当前大小为 0，无法作为协议实现参考。
