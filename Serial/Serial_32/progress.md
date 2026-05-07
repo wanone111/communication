@@ -23,8 +23,11 @@
     - `bash -lc "gcc -fsyntax-only -std=c11 -Wall -Wextra -I package/communication/Serial/Serial_32/include -include <(printf '%s\n' 'typedef struct { int Instance; } UART_HandleTypeDef;' '#define USART1 1' '#define USART2 2' '#define HAL_UART_Transmit(a,b,c,d) ((void)(a),(void)(b),(void)(c),(void)(d))' '#define HAL_UART_Receive(a,b,c,d) ((void)(a),(void)(b),(void)(c),(void)(d))' '#define HAL_UART_Receive_IT(a,b,c) ((void)(a),(void)(b),(void)(c))') package/communication/Serial/Serial_32/src/Serial.c"`
     - `bash -lc "gcc -fsyntax-only -std=c11 -Wall -Wextra -DMAX_FRAME_LEN=64U -I package/communication/Serial/Serial_32/include -include <(printf '%s\n' 'typedef struct { int Instance; } UART_HandleTypeDef;' '#define USART1 1' '#define USART2 2' '#define HAL_UART_Transmit(a,b,c,d) ((void)(a),(void)(b),(void)(c),(void)(d))' '#define HAL_UART_Receive(a,b,c,d) ((void)(a),(void)(b),(void)(c),(void)(d))' '#define HAL_UART_Receive_IT(a,b,c) ((void)(a),(void)(b),(void)(c))') package/communication/Serial/Serial_32/src/Serial.c"`
     - `rg -n "^serial\\.c$|RxData1<=255|\\\\xff|uint8_t pRxPacket1|uint8_t pRxPacket2" package/communication/Serial/Serial_32 -S`
+- README 更新已完成：
+  - 用户补充目标芯片为 STM32F103C8T6。
+  - `package/communication/README.md` 原本为空文件，本次补充了通信目录结构、`Serial_32` 文件说明、UART 用途、帧格式、已优化内容、已验证内容和未验证内容。
 - 验证结果：
   - 两组 `gcc -fsyntax-only` 均返回 0，未输出警告或错误。
   - `rg` 未找到原始裸文本、恒真判断、旧 8 位索引和 `\xff` 调试尾字节残留。
 - 未验证内容：
-  - 未运行真实 STM32 HAL 工程构建；当前目录未包含完整 HAL/CubeMX 工程和芯片型号配置。
+  - 未运行真实 STM32F103C8T6 HAL 工程构建；当前目录未包含完整 STM32CubeMX/STM32F1 HAL 工程和芯片配置。
