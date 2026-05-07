@@ -1,0 +1,323 @@
+#include "serial.h"
+/**
+  *
+  *UART1 RX B15 TX B14  与蓝牙模块连接，用于无人机与地面通信
+  *UART2 RX A3  TX A2  与串口屏连接，用于32与串口屏通信
+  *
+  *
+  *
+  */
+
+
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
+volatile uint8_t RxData1;//接收数据变量
+volatile uint8_t RxData2;//接收数据变量
+volatile uint8_t data_len;//数据长度
+volatile uint8_t Serial_RxFlag1; //定义接收数据包标志位 USART1
+volatile uint8_t Serial_RxFlag2;
+uint8_t Serial_TxPacket1[MAX_FRAME_LEN]; //定义发送数据包数组，数据包格式：0F F0
+uint8_t Serial_RxPacket1[MAX_FRAME_LEN]; //定义接收数据包数组
+uint8_t Serial_TxPacket2[SERIAL2_BUF_LEN]; //定义发送数据包数组，数据包格式：FF 0F 03 FE
+uint8_t Serial_RxPacket2[SERIAL2_BUF_LEN]; //定义接收数据包数组
+float data[SERIAL1_MAX_DATA_COUNT];
+
+static void Serial1_ResetState(uint8_t *state, uint16_t *index, uint8_t *sum_buf, uint8_t *buffer)
+{
+    *state = 0;
+    *index = 0;
+    *sum_buf = 0;
+    memset(buffer, 0, MAX_FRAME_LEN);
+}
+
+static void Serial2_ResetState(uint8_t *state, uint16_t *index, uint8_t *buffer)
+{
+    *state = 0;
+    *index = 0;
+    memset(buffer, 0, SERIAL2_BUF_LEN);
+}
+
+/**
+  * 函数功能: 重定向c库函数printf到DEBUG_USARTx
+  * 输入参数: 无
+  * 返 回 值: 无
+  * 说    明：无
+  */
+int fputc(int ch, FILE *stream)
+{
+    uint8_t tx_ch = (uint8_t)ch;
+    (void)stream;
+    HAL_UART_Transmit(&huart2, &tx_ch, 1, 100);
+    return ch;
+}
+/**
+  * 函数功能: 重定向c库函数getchar,scanf到DEBUG_USARTx
+  * 输入参数: 无
+  * 返 回 值: 无
+  * 说    明：无
+  */
+int fgetc(FILE *f)
+{
+    uint8_t ch = 0;
+    (void)f;
+    HAL_UART_Receive(&huart2, &ch, 1, 100);
+    return ch;
+}
+/**
+  * 函    数：获取串口1接收数据包标志位
+  * 参    数：无
+  * 返 回 值：串口1接收数据包标志位，范围：0~1，接收到数据包后，标志位置1，读取后标志位自动清零
+  */
+uint8_t Serial_GetRxFlag1(void)
+{
+    if (Serial_RxFlag1 == 1) //如果标志位为1
+    {
+        Serial_RxFlag1 = 0;
+        return 1; //则返回1，并自动清零标志位
+    }
+
+    return 0; //如果标志位为0，则返回0
+}
+/**
+  * 函    数：获取串口2接收数据包标志位
+  * 参    数：无
+  * 返 回 值：串口2接收数据包标志位，范围：0~1，接收到数据包后，标志位置1，读取后标志位自动清零
+  */
+uint8_t Serial_GetRxFlag2(void)
+{
+    if (Serial_RxFlag2 == 1) //如果标志位为1
+    {
+        Serial_RxFlag2 = 0;
+        return 1; //则返回1，并自动清零标志位
+    }
+
+    return 0; //如果标志位为0，则返回0
+}
+/**
+  * 函数功能: 串口1处理数据
+  * 输入参数: 无
+  * 返 回 值: 无
+  * 说    明：无
+  */
+void uart1_data(void)
+{
+    if (Serial_GetRxFlag1() == 1)
+    {
+        const uint8_t packet_len = Serial_RxPacket1[0];
+        uint8_t count = 0;
+
+        printf("orin: ");
+        for (uint16_t i = 0; i <= packet_len; i++)  // 包括长度字节
+        {
+            printf("0x%02X ", Serial_RxPacket1[i]);
+        }
+        printf("\r\n");
+
+        for (uint16_t i = 1; (i + 1U) <= packet_len && count < SERIAL1_MAX_DATA_COUNT; i += 2U)
+        {
+            int16_t raw = (int16_t)(((uint16_t)Serial_RxPacket1[i] << 8) | Serial_RxPacket1[i + 1U]);
+            data[count++] = (float)raw / 1000.0f;
+        }
+
+        // 显示解析后的数据
+        printf(" (process%d):\r\n", count);
+        for (uint8_t i = 0; i < count; i++)
+        {
+            printf("data[%d] = %f\r\n", i, data[i]);
+        }
+    }
+}
+
+
+
+/**
+  * 函数功能: 串口1接收数据
+  * 输入参数: 无
+  * 返 回 值: 无
+  * 说    明：无
+  */
+void UART1_RxPacket(void)
+{
+    static uint8_t RxState1 = 0;      //定义表示当前状态机状态的静态变量
+    static uint16_t pRxPacket1 = 0;   //定义表示当前接收数据位置的静态变量
+    static uint8_t rx1_buf[MAX_FRAME_LEN]; //串口数据缓冲
+    static uint8_t sum_buf = 0;       //校验和缓冲区
+    const uint8_t rx_byte = RxData1;
+
+    switch (RxState1)
+    {
+        case 0: //帧头1
+            if (rx_byte == SERIAL1_HEADER1)
+            {
+                pRxPacket1 = 0;
+                sum_buf = rx_byte;
+                RxState1 = 1;
+            }
+            break;
+
+        case 1: //帧头2
+            if (rx_byte == SERIAL1_HEADER2)
+            {
+                sum_buf += rx_byte;
+                RxState1 = 2;
+            }
+            else if (rx_byte == SERIAL1_HEADER1)
+            {
+                sum_buf = rx_byte;
+            }
+            else
+            {
+                Serial1_ResetState(&RxState1, &pRxPacket1, &sum_buf, rx1_buf);
+            }
+            break;
+
+        case 2: //数据长度
+#if (MAX_FRAME_LEN < 256U)
+            if (rx_byte > (MAX_FRAME_LEN - 1U))
+            {
+                Serial1_ResetState(&RxState1, &pRxPacket1, &sum_buf, rx1_buf);
+                break;
+            }
+#endif
+
+            rx1_buf[pRxPacket1++] = rx_byte;
+            data_len = rx_byte;
+            sum_buf += rx_byte;
+            RxState1 = (rx_byte == 0U) ? 4U : 3U;
+            break;
+
+        case 3: //数据内容
+            if (pRxPacket1 < MAX_FRAME_LEN)
+            {
+                rx1_buf[pRxPacket1++] = rx_byte;
+                sum_buf += rx_byte;
+            }
+            else
+            {
+                Serial1_ResetState(&RxState1, &pRxPacket1, &sum_buf, rx1_buf);
+                break;
+            }
+
+            if (pRxPacket1 >= (1U + data_len))
+            {
+                RxState1 = 4;
+            }
+            break;
+
+        case 4: //校验和
+        {
+            const uint8_t sum = sum_buf;
+            if (rx_byte == sum)
+            {
+                memcpy(Serial_RxPacket1, rx1_buf, pRxPacket1);
+                Serial_RxFlag1 = 1;
+            }
+            else
+            {
+                printf("Checksum error, expect 0x%02X, got 0x%02X\r\n", sum, rx_byte);
+            }
+
+            Serial1_ResetState(&RxState1, &pRxPacket1, &sum_buf, rx1_buf);
+            break;
+        }
+
+        default:
+            Serial1_ResetState(&RxState1, &pRxPacket1, &sum_buf, rx1_buf);
+            break;
+    }
+}
+/**
+  * 函数功能: 串口2接收数据
+  * 输入参数: 无
+  * 返 回 值: 无
+  * 说    明：无
+  */
+void UART2_RxPacket(void)
+{
+    static uint8_t RxState2 = 0; //定义表示当前状态机状态的静态变量
+    static uint16_t pRxPacket2 = 0; //定义表示当前接收数据位置的静态变量
+    static uint8_t rx2_buf[SERIAL2_BUF_LEN]; //定义表示接收串口2数据包的中间变量
+    const uint8_t rx_byte = RxData2;
+
+    switch (RxState2)
+    {
+        case 0:
+            if (rx_byte == SERIAL2_HEADER1)
+            {
+                RxState2 = 1;
+                pRxPacket2 = 1;
+                rx2_buf[0] = SERIAL2_HEADER1;
+            }
+            break;
+
+        case 1:
+            if (rx_byte == SERIAL2_HEADER2)
+            {
+                RxState2 = 2;
+                pRxPacket2 = 2;
+                rx2_buf[1] = SERIAL2_HEADER2;
+            }
+            else
+            {
+                Serial2_ResetState(&RxState2, &pRxPacket2, rx2_buf);
+            }
+            break;
+
+        case 2:
+            if (pRxPacket2 < SERIAL2_BUF_LEN)
+            {
+                rx2_buf[pRxPacket2++] = rx_byte;
+                RxState2 = 3;
+            }
+            else
+            {
+                Serial2_ResetState(&RxState2, &pRxPacket2, rx2_buf);
+            }
+            break;
+
+        case 3:
+            if (rx_byte == SERIAL2_TAIL && pRxPacket2 < SERIAL2_BUF_LEN)
+            {
+                rx2_buf[pRxPacket2++] = SERIAL2_TAIL;
+                memcpy(Serial_RxPacket2, rx2_buf, SERIAL2_FRAME_LEN);
+                Serial_RxFlag2 = 1;
+            }
+            else
+            {
+                memset(Serial_RxPacket2, 0, sizeof(Serial_RxPacket2));
+            }
+
+            Serial2_ResetState(&RxState2, &pRxPacket2, rx2_buf);
+            break;
+
+        default:
+            Serial2_ResetState(&RxState2, &pRxPacket2, rx2_buf);
+            break;
+    }
+}
+
+
+/**
+  * 函数功能: 串口接收中断回调函数
+  * 输入参数: 无
+  * 返 回 值: 无
+  * 说    明：无
+  */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+    if (huart == NULL)
+    {
+        return;
+    }
+
+    if (huart->Instance == USART1)
+    {
+        UART1_RxPacket();
+        HAL_UART_Receive_IT(&huart1, (uint8_t *)&RxData1, 1);
+    }
+    else if (huart->Instance == USART2)
+    {
+        UART2_RxPacket();
+        HAL_UART_Receive_IT(&huart2, (uint8_t *)&RxData2, 1);
+    }
+}
